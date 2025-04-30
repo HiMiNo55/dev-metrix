@@ -1,4 +1,4 @@
-import { JiraService } from './services/jira'
+import { JiraService } from '../services/jira'
 import {
   Table,
   TableBody,
@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-export default async function Home() {
+export default async function Design() {
   if (
     !process.env.JIRA_URL ||
     !process.env.JIRA_USERNAME ||
@@ -25,7 +25,7 @@ export default async function Home() {
     process.env.JIRA_USERNAME,
     process.env.JIRA_TOKEN
   )
-  const response = await jiraService.groupIssuesByDeveloper()
+  const response = await jiraService.getIssueDesign()
   const startSprintAt = 52
   const endSprintAt = 58
   const totalSprints = endSprintAt - startSprintAt + 1
@@ -41,12 +41,11 @@ export default async function Home() {
               const index = i + startSprintAt
               return (
                 <TableHead key={index} className='text-center'>
-                  {`SP ${index}`}
+                  Sprint {index}
                 </TableHead>
               )
             })}
             <TableHead>Sum</TableHead>
-            <TableHead>Avg</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -61,18 +60,15 @@ export default async function Home() {
                 const sprintData = developer.sprints.find(
                   (sprint) => sprint.sprint === `${index}`
                 )
-                sum += (sprintData?.point || 0) + (sprintData?.design || 0)
+                sum += sprintData?.design || 0
                 return (
-                  <TableCell key={`${index}_point`} className='text-center'>
-                    {`${sprintData?.point || 0} | ${sprintData?.design || 0}`}
+                  <TableCell key={index} className='text-center'>
+                    <div>{sprintData?.design || 0}</div>
                   </TableCell>
                 )
               })}
               <TableCell className='text-center'>
                 <div>{sum.toFixed(2)}</div>
-              </TableCell>
-              <TableCell className='text-center'>
-                {(sum / totalSprints).toFixed(2)}
               </TableCell>
             </TableRow>
           ))}
