@@ -27,7 +27,7 @@ export default async function Home() {
   )
   const response = await jiraService.groupIssuesByDeveloper()
   const startSprintAt = 52
-  const endSprintAt = 58
+  const endSprintAt = 59
   const totalSprints = endSprintAt - startSprintAt + 1
   let sum = 0
   return (
@@ -40,8 +40,8 @@ export default async function Home() {
             {Array.from({ length: totalSprints }, (_, i) => {
               const index = i + startSprintAt
               return (
-                <TableHead key={index} className='text-center'>
-                  {`SP ${index}`}
+                <TableHead key={`${index}`} className='text-center'>
+                  {`${index}`}
                 </TableHead>
               )
             })}
@@ -52,7 +52,7 @@ export default async function Home() {
         <TableBody>
           {response.data.map((developer) => (
             <TableRow key={developer.developer}>
-              <TableCell className='font-medium'>
+              <TableCell className='font-medium text-left'>
                 {developer.developer}
               </TableCell>
               {Array.from({ length: totalSprints }, (_, i) => {
@@ -63,7 +63,7 @@ export default async function Home() {
                 )
                 sum += (sprintData?.point || 0) + (sprintData?.design || 0)
                 return (
-                  <TableCell key={`${index}_point`} className='text-center'>
+                  <TableCell key={`${index}`} className='text-center'>
                     {`${sprintData?.point || 0} | ${sprintData?.design || 0}`}
                   </TableCell>
                 )

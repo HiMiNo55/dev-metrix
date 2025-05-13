@@ -1,17 +1,58 @@
 import axios from 'axios';
 import { JiraIssue, JiraApiIssue, JiraApiResponse } from '../types/jira';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 export class JiraService {
     private readonly jiraUrl: string;
     private readonly username: string;
     private readonly password: string;
-    private static cache: { data: JiraIssue[]; timestamp: number } | null = null;
-    private static readonly CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+    private readonly cacheDir: string;
+    private readonly MAX_CACHE_DAYS = 3;
 
     constructor(jiraUrl: string, username: string, password: string) {
         this.jiraUrl = jiraUrl;
         this.username = username;
         this.password = password;
+        this.cacheDir = path.join(process.cwd(), 'data', 'jira-cache');
+    }
+
+    private getCacheFilePath(date: Date): string {
+        const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        return path.join(this.cacheDir, `jira-cache-${dateStr}.json`);
+    }
+
+    private async cleanupOldCache(): Promise<void> {
+        try {
+            const files = await fs.readdir(this.cacheDir);
+
+            // Get all cache files and their dates
+            const cacheFiles = await Promise.all(
+                files
+                    .filter(file => file.startsWith('jira-cache-') && file.endsWith('.json'))
+                    .map(async file => {
+                        const filePath = path.join(this.cacheDir, file);
+                        const stats = await fs.stat(filePath);
+                        return {
+                            file,
+                            date: new Date(file.replace('jira-cache-', '').replace('.json', '')),
+                            stats
+                        };
+                    })
+            );
+
+            // Sort by date descending
+            cacheFiles.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+            // Delete files older than MAX_CACHE_DAYS
+            for (let i = this.MAX_CACHE_DAYS; i < cacheFiles.length; i++) {
+                const filePath = path.join(this.cacheDir, cacheFiles[i].file);
+                await fs.unlink(filePath);
+                console.log(`Deleted old cache file: ${filePath}`);
+            }
+        } catch (error) {
+            console.error('Error cleaning up old cache:', error);
+        }
     }
 
     private readonly whitelist = [
@@ -60,64 +101,96 @@ export class JiraService {
     ];
 
     async getIssues(): Promise<{ data: JiraIssue[] }> {
-        // Check if cache exists and is still valid
-        if (JiraService.cache && (Date.now() - JiraService.cache.timestamp) < JiraService.CACHE_DURATION) {
-            console.log('Returning cached Jira issues');
-            return { data: JiraService.cache.data };
-        }
+        try {
+            const today = new Date();
+            const cacheFilePath = this.getCacheFilePath(today);
 
-        console.log('Fetching fresh Jira issues');
-        const auth = Buffer.from(`${this.username}:${this.password}`).toString('base64');
-        const maxResults = 100;
-        let startAt = 0;
-        let allIssues: JiraApiIssue[] = [];
-        let totalIssues: number | null = null;
-
-        do {
-            const response = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search`, {
-                params: {
-                    jql: `project = LPS AND type IN ("Technical Story", Task, Design) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
-                    fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels',
-                    maxResults,
-                    startAt,
-                },
-                headers: {
-                    Authorization: `Basic ${auth}`,
-                },
-            });
-
-            const { issues, total } = response.data;
-            if (totalIssues === null) {
-                totalIssues = total;
+            // Try to read from today's cache file
+            const fileCache = await this.readFileCache(cacheFilePath);
+            const THREE_HOURS_IN_MS = 1000 * 60 * 60 * 3;
+            if (fileCache && fileCache.timestamp > Date.now() - THREE_HOURS_IN_MS) {
+                console.log('Returning cached Jira issues from file');
+                return { data: fileCache.data };
             }
 
-            allIssues = [...allIssues, ...issues];
-            startAt += maxResults;
+            console.log('Fetching fresh Jira issues');
+            const auth = Buffer.from(`${this.username}:${this.password}`).toString('base64');
+            const maxResults = 100;
+            let startAt = 0;
+            let allIssues: JiraApiIssue[] = [];
+            let totalIssues: number | null = null;
 
-            console.log(`Fetched ${allIssues.length} of ${totalIssues} issues`);
-        } while (startAt < totalIssues!);
+            do {
+                const response = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search`, {
+                    params: {
+                        jql: `project = LPS AND type IN ("Technical Story", Task, Design) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
+                        fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee',
+                        maxResults,
+                        startAt,
+                    },
+                    headers: {
+                        Authorization: `Basic ${auth}`,
+                    },
+                });
 
-        const mappedIssues = allIssues.map((issue: JiraApiIssue) => ({
-            id: issue.id,
-            key: issue.key,
-            summary: issue.fields.summary,
-            developer: issue.fields.customfield_10949?.displayName || 'Unassigned',
-            storyPoint: issue.fields.customfield_10028 || 0,
-            feStoryPoint: issue.fields.customfield_10909 || 0,
-            beStoryPoint: issue.fields.customfield_10910 || 0,
-            sprint: issue.fields.customfield_10020?.[0]?.name || 'No Sprint',
-            squad: issue.fields.customfield_10239?.value || 'No Squad',
-            type: issue.fields.issuetype?.name || 'Unknown',
-            labels: issue.fields.labels || []
-        }));
+                const { issues, total } = response.data;
+                if (totalIssues === null) {
+                    totalIssues = total;
+                }
 
-        // Update cache with new data
-        JiraService.cache = {
-            data: mappedIssues,
-            timestamp: Date.now()
-        };
+                allIssues = [...allIssues, ...issues];
+                startAt += maxResults;
 
-        return { data: mappedIssues };
+                console.log(`Fetched ${allIssues.length} of ${totalIssues} issues`);
+            } while (startAt < totalIssues!);
+
+            const mappedIssues = allIssues.map((issue: JiraApiIssue) => ({
+                id: issue.id,
+                key: issue.key,
+                summary: issue.fields.summary,
+                developer: issue.fields.customfield_10949?.displayName || 'Unassigned',
+                storyPoint: issue.fields.customfield_10028 || 0,
+                feStoryPoint: issue.fields.customfield_10909 || 0,
+                beStoryPoint: issue.fields.customfield_10910 || 0,
+                sprint: issue.fields.customfield_10020?.[0]?.name || 'No Sprint',
+                squad: issue.fields.customfield_10239?.value || 'No Squad',
+                type: issue.fields.issuetype?.name || 'Unknown',
+                labels: issue.fields.labels || [],
+                assignee: issue.fields.assignee?.displayName || 'Unassigned'
+            }));
+
+            // Update file cache
+            const cacheData = {
+                data: mappedIssues,
+                timestamp: Date.now()
+            };
+            await this.writeFileCache(cacheFilePath, cacheData);
+            await this.cleanupOldCache();
+
+            return { data: mappedIssues };
+        } catch (error) {
+            console.error('Error in getIssues:', error);
+            throw error;
+        }
+    }
+
+    private async readFileCache(filePath: string): Promise<{ data: JiraIssue[]; timestamp: number } | null> {
+        try {
+            await fs.mkdir(path.dirname(filePath), { recursive: true });
+            const fileContent = await fs.readFile(filePath, 'utf-8');
+            return JSON.parse(fileContent);
+        } catch {
+            return null;
+        }
+    }
+
+    private async writeFileCache(filePath: string, cacheData: { data: JiraIssue[]; timestamp: number }): Promise<void> {
+        try {
+            await fs.mkdir(path.dirname(filePath), { recursive: true });
+            await fs.writeFile(filePath, JSON.stringify(cacheData, null, 2));
+        } catch (error) {
+            console.error('Error writing cache file:', error);
+        }
     }
 
     groupIssuesByDeveloperAndSprint = async (): Promise<{ data: { developer: string, squad: string, sprint: string, storyPoint: number, feStoryPoint: number, beStoryPoint: number }[] }> => {
@@ -163,20 +236,20 @@ export class JiraService {
 
     groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, developers: { name: string, point: number, design: number }[] }[] }> => {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && item.sprint.includes(sprint?.toString() || ''));
+        const filteredData = data.filter(item => (this.whitelist.includes(item.developer) || this.whitelist.includes(item.assignee)) && item.sprint.includes(sprint?.toString() || ''));
         const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, point: number, design: number }[] } }>((acc, curr) => {
             const key = `${curr.squad}-${curr.sprint}`;
             if (!acc[key]) {
                 acc[key] = { squad: curr.squad, sprint: curr.sprint, developers: [] };
             }
-            const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer);
+            const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || dev.name === curr.assignee);
             if (existingDeveloper) {
                 existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
                 if (curr.type === 'Design') {
                     existingDeveloper.design += curr.storyPoint;
                 }
             } else {
-                acc[key].developers.push({ name: curr.developer, point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' ? curr.storyPoint : 0 });
+                acc[key].developers.push({ name: (curr.developer != 'Unassigned') ? curr.developer : curr.assignee, point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' ? curr.storyPoint : 0 });
             }
             return acc;
         }, {});
@@ -230,6 +303,16 @@ export class JiraService {
         }, {});
 
         return { data: Object.values(groupedData).sort((a, b) => a.developer.localeCompare(b.developer)) };
+    }
+
+    async getDeveloperIssues(sprint: number, developer: string): Promise<{ data: JiraIssue[] }> {
+        const { data } = await this.getIssues();
+        const filteredData = data.filter(
+            item =>
+                (item.developer === developer || item.assignee === developer) &&
+                item.sprint.includes(sprint.toString())
+        );
+        return { data: filteredData };
     }
 }
 

@@ -3,14 +3,16 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import Link from 'next/link'
 
 type Props = {
   params: {
-    slug: string
+    sprintNo: string
   }
 }
 
@@ -30,13 +32,13 @@ export default async function Sprint({ params }: Props) {
     process.env.JIRA_USERNAME,
     process.env.JIRA_TOKEN
   )
-  const { slug } = await params
-  const response = await jiraService.groupIssuesBySprint(Number(slug))
+  const { sprintNo } = await params
+  const response = await jiraService.groupIssuesBySprint(Number(sprintNo))
 
   if (!response.data.length) {
     return (
       <div className='container mx-auto py-10'>
-        <h1 className='text-3xl font-bold mb-8'>Sprint {slug}</h1>
+        <h1 className='text-3xl font-bold mb-8'>Sprint {sprintNo}</h1>
         <p>No data available for this sprint.</p>
       </div>
     )
@@ -44,7 +46,7 @@ export default async function Sprint({ params }: Props) {
 
   return (
     <div className='container mx-auto py-10'>
-      <h1 className='text-3xl font-bold mb-8'>Sprint {slug}</h1>
+      <h1 className='text-3xl font-bold mb-8'>Sprint {sprintNo}</h1>
 
       {response.data.map((squadData) => (
         <div key={squadData.squad + squadData.sprint} className='mb-8'>
@@ -52,7 +54,7 @@ export default async function Sprint({ params }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Developer</TableHead>
+                <TableHead className='w-1/2'>Developer</TableHead>
                 <TableHead>Dev Points</TableHead>
                 <TableHead>Design Points</TableHead>
                 <TableHead>Sum Points</TableHead>
@@ -61,13 +63,39 @@ export default async function Sprint({ params }: Props) {
             <TableBody>
               {squadData.developers.map((developer) => (
                 <TableRow key={developer.name}>
-                  <TableCell>{developer.name}</TableCell>
-                  <TableCell>{developer.point}</TableCell>
-                  <TableCell>{developer.design}</TableCell>
-                  <TableCell>{developer.point + developer.design}</TableCell>
+                  <TableCell className='w-1/2 text-left'>
+                    <Link
+                      href={`/sprint/${sprintNo}/${developer.name}`}
+                      className='text-primary hover:underline'
+                    >
+                      {developer.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className='text-center'>
+                    {developer.point}
+                  </TableCell>
+                  <TableCell className='text-center'>
+                    {developer.design}
+                  </TableCell>
+                  <TableCell className='text-center'>
+                    {developer.point + developer.design}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={3} className='text-right'>
+                  Total
+                </TableCell>
+                <TableCell className='text-center'>
+                  {squadData.developers.reduce(
+                    (acc, dev) => acc + dev.point + dev.design,
+                    0
+                  )}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
           </Table>
         </div>
       ))}
