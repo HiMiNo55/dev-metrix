@@ -3,7 +3,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -33,7 +32,7 @@ export default async function DeveloperSprint({ params }: Props) {
     process.env.JIRA_USERNAME,
     process.env.JIRA_TOKEN
   )
-  const { sprintNo, name } = params
+  const { sprintNo, name } = await params
   const decodedName = decodeURIComponent(name)
   const response = await jiraService.getDeveloperIssues(
     Number(sprintNo),
@@ -78,6 +77,7 @@ export default async function DeveloperSprint({ params }: Props) {
           <TableRow>
             <TableHead>Squad</TableHead>
             <TableHead>Issue Key</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Summary</TableHead>
             <TableHead>Story Points</TableHead>
             <TableHead>FE Story Points</TableHead>
@@ -98,6 +98,7 @@ export default async function DeveloperSprint({ params }: Props) {
                   {issue.key}
                 </a>
               </TableCell>
+              <TableCell>{issue.type}</TableCell>
               <TableCell>{issue.summary}</TableCell>
               <TableCell className='text-center'>
                 {issue.storyPoint || 0}

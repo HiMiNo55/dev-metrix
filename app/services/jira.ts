@@ -123,7 +123,7 @@ export class JiraService {
             do {
                 const response = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search`, {
                     params: {
-                        jql: `project = LPS AND type IN ("Technical Story", Task, Design) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
+                        jql: `project = LPS AND type IN ("Technical Story", Task, Design, IA) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
                         fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee',
                         maxResults,
                         startAt,
@@ -245,11 +245,11 @@ export class JiraService {
             const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || dev.name === curr.assignee);
             if (existingDeveloper) {
                 existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
-                if (curr.type === 'Design') {
+                if (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design')) {
                     existingDeveloper.design += curr.storyPoint;
                 }
             } else {
-                acc[key].developers.push({ name: (curr.developer != 'Unassigned') ? curr.developer : curr.assignee, point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' ? curr.storyPoint : 0 });
+                acc[key].developers.push({ name: (curr.developer != 'Unassigned') ? curr.developer : curr.assignee, point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0 });
             }
             return acc;
         }, {});
@@ -272,11 +272,11 @@ export class JiraService {
             const existingSprint = acc[key].sprints.find(sprint => sprint.sprint.includes(curr.sprint.slice(-2)));
             if (existingSprint) {
                 existingSprint.point += curr.feStoryPoint + curr.beStoryPoint;
-                if (curr.type === 'Design' || curr.labels?.includes('dev-design')) {
+                if (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design')) {
                     existingSprint.design = (existingSprint.design || 0) + curr.storyPoint;
                 }
             } else {
-                acc[key].sprints.push({ sprint: curr.sprint.slice(-2), point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0 });
+                acc[key].sprints.push({ sprint: curr.sprint.slice(-2), point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0 });
             }
             return acc;
         }, {});
@@ -286,7 +286,7 @@ export class JiraService {
 
     getIssueDesign = async (): Promise<{ data: { developer: string, sprints: { sprint: string, design: number }[] }[] }> => {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && (item.type === 'Design' || item.labels?.includes('dev-design')));
+        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && (item.type === 'Design' || item.type === 'IA' || item.labels?.includes('dev-design')));
         const groupedData = filteredData.reduce<{ [key: string]: { developer: string, sprints: { sprint: string, design: number }[] } }>((acc, curr) => {
             const key = curr.developer;
             if (!acc[key]) {
@@ -314,7 +314,10 @@ export class JiraService {
         );
         return { data: filteredData };
     }
+
+    async getIssueShouldInvestigate(): Promise<{ data: JiraIssue[] }> {
+        const { data } = await this.getIssues();
+        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && item.type === 'Technical Story' && item.storyPoint < item.feStoryPoint + item.beStoryPoint);
+        return { data: filteredData };
+    }
 }
-
-
-

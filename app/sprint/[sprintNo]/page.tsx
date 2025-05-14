@@ -56,7 +56,7 @@ export default async function Sprint({ params }: Props) {
               <TableRow>
                 <TableHead className='w-1/2'>Developer</TableHead>
                 <TableHead>Dev Points</TableHead>
-                <TableHead>Design Points</TableHead>
+                <TableHead>Design/IA Points</TableHead>
                 <TableHead>Sum Points</TableHead>
               </TableRow>
             </TableHeader>
