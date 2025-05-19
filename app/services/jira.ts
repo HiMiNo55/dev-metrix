@@ -81,7 +81,7 @@ export class JiraService {
         'RACHATAPON PONGANANTAYOTIN',
         'Roj Wilai',
         'RUNGTIWA KITTACHAROENCHAI',
-        'SIRIWAT BUNMEES',
+        'SIRIWAT BUNMEE',
         'SUCHAT INYAM',
         'Supakorn Namkeatsakul',
         'Suthipong Khattiya',
