@@ -78,6 +78,7 @@ export default async function DeveloperSprint({ params }: Props) {
             <TableHead>Squad</TableHead>
             <TableHead>Issue Key</TableHead>
             <TableHead>Type</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Summary</TableHead>
             <TableHead>Story Points</TableHead>
             <TableHead>FE Story Points</TableHead>
@@ -99,7 +100,8 @@ export default async function DeveloperSprint({ params }: Props) {
                 </a>
               </TableCell>
               <TableCell>{issue.type}</TableCell>
-              <TableCell>{issue.summary}</TableCell>
+              <TableCell>{issue.status}</TableCell>
+              <TableCell className='text-left'>{issue.summary}</TableCell>
               <TableCell className='text-center'>
                 {issue.storyPoint || 0}
               </TableCell>

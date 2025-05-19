@@ -21,7 +21,8 @@ export interface JiraFields {
     customfield_10239?: JiraCustomField; // Squad
     issuetype?: JiraCustomField;         // Type
     labels?: string[];
-    assignee?: JiraCustomField;          // Assignee
+    assignee?: JiraCustomField;
+    status?: JiraCustomField;
 }
 
 export interface JiraApiIssue {
@@ -43,6 +44,7 @@ export interface JiraIssue {
     type: string;
     labels?: string[];
     assignee: string;
+    status: string;
 }
 
 export interface JiraApiResponse {

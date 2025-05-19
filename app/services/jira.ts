@@ -124,7 +124,7 @@ export class JiraService {
                 const response = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search`, {
                     params: {
                         jql: `project = LPS AND type IN ("Technical Story", Task, Design, IA) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
-                        fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee',
+                        fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee, status',
                         maxResults,
                         startAt,
                     },
@@ -156,7 +156,8 @@ export class JiraService {
                 squad: issue.fields.customfield_10239?.value || 'No Squad',
                 type: issue.fields.issuetype?.name || 'Unknown',
                 labels: issue.fields.labels || [],
-                assignee: issue.fields.assignee?.displayName || 'Unassigned'
+                assignee: issue.fields.assignee?.displayName || 'Unassigned',
+                status: issue.fields.status?.name || 'Unknown'
             }));
 
             // Update file cache
@@ -234,10 +235,10 @@ export class JiraService {
         return { data: Object.values(groupedData) };
     }
 
-    groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, developers: { name: string, point: number, design: number }[] }[] }> => {
+    groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, percentComplete: number, developers: { name: string, point: number, design: number, total: number, done: number }[] }[] }> => {
         const { data } = await this.getIssues();
         const filteredData = data.filter(item => (this.whitelist.includes(item.developer) || this.whitelist.includes(item.assignee)) && item.sprint.includes(sprint?.toString() || ''));
-        const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, point: number, design: number }[] } }>((acc, curr) => {
+        const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, point: number, design: number, total: number, done: number, status: string }[] } }>((acc, curr) => {
             const key = `${curr.squad}-${curr.sprint}`;
             if (!acc[key]) {
                 acc[key] = { squad: curr.squad, sprint: curr.sprint, developers: [] };
@@ -245,17 +246,34 @@ export class JiraService {
             const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || dev.name === curr.assignee);
             if (existingDeveloper) {
                 existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
+                existingDeveloper.total++;
+                existingDeveloper.done += ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0;
                 if (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design')) {
                     existingDeveloper.design += curr.storyPoint;
                 }
             } else {
-                acc[key].developers.push({ name: (curr.developer != 'Unassigned') ? curr.developer : curr.assignee, point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0 });
+                acc[key].developers.push({
+                    name: (curr.developer !== 'Unassigned') ? curr.developer : curr.assignee,
+                    point: curr.feStoryPoint + curr.beStoryPoint,
+                    design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0,
+                    total: 1,
+                    done: ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0,
+                    status: curr.status
+                });
             }
             return acc;
         }, {});
 
         return {
-            data: Object.values(groupedData)
+            data: Object.values(groupedData).map(squadData => ({
+                ...squadData,
+                percentComplete: squadData.developers.reduce((acc, dev) => acc + dev.done, 0) / squadData.developers.reduce((acc, dev) => acc + dev.total, 0) * 100
+            }))
+                .sort((a, b) => a.squad.localeCompare(b.squad))
+                .map(squadData => ({
+                    ...squadData,
+                    developers: squadData.developers.sort((a, b) => a.name.localeCompare(b.name))
+                }))
         };
     }
 
@@ -317,7 +335,7 @@ export class JiraService {
 
     async getIssueShouldInvestigate(): Promise<{ data: JiraIssue[] }> {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && item.type === 'Technical Story' && item.storyPoint < item.feStoryPoint + item.beStoryPoint);
-        return { data: filteredData };
+        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && (item.type === 'Technical Story' && (item.storyPoint < item.feStoryPoint + item.beStoryPoint || (item.feStoryPoint + item.beStoryPoint === 0 && item.storyPoint > 0))));
+        return { data: filteredData.sort((a, b) => b.sprint.localeCompare(a.sprint)) };
     }
 }

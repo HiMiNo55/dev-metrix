@@ -50,11 +50,17 @@ export default async function Sprint({ params }: Props) {
 
       {response.data.map((squadData) => (
         <div key={squadData.squad + squadData.sprint} className='mb-8'>
-          <h2 className='text-2xl font-semibold mb-4'>{`${squadData.squad} - ${squadData.sprint}`}</h2>
+          <h2 className='text-2xl font-semibold mb-4'>
+            {squadData.squad} - {squadData.sprint}{' '}
+            <span className='text-muted-foreground text-sm'>
+              Completed: {Math.round(squadData.percentComplete)}%
+            </span>
+          </h2>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-1/2'>Developer</TableHead>
+                <TableHead>Done/All</TableHead>
                 <TableHead>Dev Points</TableHead>
                 <TableHead>Design/IA Points</TableHead>
                 <TableHead>Sum Points</TableHead>
@@ -71,6 +77,7 @@ export default async function Sprint({ params }: Props) {
                       {developer.name}
                     </Link>
                   </TableCell>
+                  <TableCell>{`${developer.done}/${developer.total}`}</TableCell>
                   <TableCell className='text-center'>
                     {developer.point}
                   </TableCell>
@@ -85,7 +92,7 @@ export default async function Sprint({ params }: Props) {
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={3} className='text-right'>
+                <TableCell colSpan={4} className='text-right'>
                   Total
                 </TableCell>
                 <TableCell className='text-center'>
