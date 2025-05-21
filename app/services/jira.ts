@@ -235,16 +235,17 @@ export class JiraService {
         return { data: Object.values(groupedData) };
     }
 
-    groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, percentComplete: number, developers: { name: string, point: number, design: number, total: number, done: number }[] }[] }> => {
+    groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, percentComplete: number, developers: { name: string, story: number, point: number, design: number, total: number, done: number }[] }[] }> => {
         const { data } = await this.getIssues();
         const filteredData = data.filter(item => (this.whitelist.includes(item.developer) || this.whitelist.includes(item.assignee)) && item.sprint.includes(sprint?.toString() || ''));
-        const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, point: number, design: number, total: number, done: number, status: string }[] } }>((acc, curr) => {
+        const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, story: number, point: number, design: number, total: number, done: number, status: string }[] } }>((acc, curr) => {
             const key = `${curr.squad}-${curr.sprint}`;
             if (!acc[key]) {
                 acc[key] = { squad: curr.squad, sprint: curr.sprint, developers: [] };
             }
             const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || dev.name === curr.assignee);
             if (existingDeveloper) {
+                existingDeveloper.story += curr.storyPoint;
                 existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
                 existingDeveloper.total++;
                 existingDeveloper.done += ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0;
@@ -254,6 +255,7 @@ export class JiraService {
             } else {
                 acc[key].developers.push({
                     name: (curr.developer !== 'Unassigned') ? curr.developer : curr.assignee,
+                    story: curr.storyPoint,
                     point: curr.feStoryPoint + curr.beStoryPoint,
                     design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0,
                     total: 1,

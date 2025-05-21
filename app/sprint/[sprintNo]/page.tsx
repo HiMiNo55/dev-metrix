@@ -59,17 +59,18 @@ export default async function Sprint({ params }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className='w-1/2'>Developer</TableHead>
+                <TableHead className='w-1/3'>Developer</TableHead>
                 <TableHead>Done/All</TableHead>
+                <TableHead>Story Points</TableHead>
                 <TableHead>Dev Points</TableHead>
                 <TableHead>Design/IA Points</TableHead>
-                <TableHead>Sum Points</TableHead>
+                <TableHead>Dev+Design Points</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {squadData.developers.map((developer) => (
                 <TableRow key={developer.name}>
-                  <TableCell className='w-1/2 text-left'>
+                  <TableCell className='text-left'>
                     <Link
                       href={`/sprint/${sprintNo}/${developer.name}`}
                       className='text-primary hover:underline'
@@ -78,6 +79,9 @@ export default async function Sprint({ params }: Props) {
                     </Link>
                   </TableCell>
                   <TableCell>{`${developer.done}/${developer.total}`}</TableCell>
+                  <TableCell className='text-center'>
+                    {developer.story}
+                  </TableCell>
                   <TableCell className='text-center'>
                     {developer.point}
                   </TableCell>
@@ -92,7 +96,7 @@ export default async function Sprint({ params }: Props) {
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={4} className='text-right'>
+                <TableCell colSpan={5} className='text-right'>
                   Total
                 </TableCell>
                 <TableCell className='text-center'>
