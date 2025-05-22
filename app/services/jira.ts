@@ -2,6 +2,7 @@ import axios from 'axios';
 import { JiraIssue, JiraApiIssue, JiraApiResponse } from '../types/jira';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { WHITELISTED_DEVELOPERS, WhitelistedDeveloper } from '../../data/whitelist';
 
 export class JiraService {
     private readonly jiraUrl: string;
@@ -54,51 +55,6 @@ export class JiraService {
             console.error('Error cleaning up old cache:', error);
         }
     }
-
-    private readonly whitelist = [
-        'ANUCHA PIPIT',
-        'Apinat Sanghiran',
-        'BURAPOL BUBPHADET',
-        'Bussarakorn Uabenjakul',
-        'Chayaporn Chachotikawong (CC)',
-        'Chayaporn Kaewin',
-        'Jittra Kerdmongkol',
-        'kajornsak.sookbantuang',
-        'Kanon Limprapaipong',
-        'Mongkhon Samanya',
-        'NATAPATCHARA ANUROJE',
-        'Nuttapon Jittachotisak',
-        'NUTTASAK MUNHADEE',
-        'Pacawat Kangwanwisit',
-        'Pansakorn Phothidaen',
-        'PEERAPHAT TOPRASERT',
-        'PHIPHAT SAETENG',
-        'PHUDIT HUNGSPRUKE',
-        '(Migrated) pathomphong charoenwichianchay',
-        'pongpat.jantanon',
-        '(Migrated) pongsathit poolsawat',
-        'PREMMAST SUWANNIKOM',
-        'RACHATAPON PONGANANTAYOTIN',
-        'Roj Wilai',
-        'RUNGTIWA KITTACHAROENCHAI',
-        'SIRIWAT BUNMEE',
-        'SUCHAT INYAM',
-        'Supakorn Namkeatsakul',
-        'Suthipong Khattiya',
-        'Tanakan Pramot',
-        'Thanadon Lamsan',
-        'Thanaphat Suwannikornkul',
-        'thanapat khumprom',
-        'THAMMASAK JUKCHAN',
-        'THANATHEP SADEEWONG',
-        'Thanawat Sritonchai',
-        'Thanut Suwannawong',
-        'tospon sriyaphai',
-        'Wijai Ruengtaweekun',
-        "NATHAPOT PORNPITAKPAN",
-        "Sarik Kumpan",
-        "Thawatchai Phuchana"
-    ];
 
     async getIssues(): Promise<{ data: JiraIssue[] }> {
         try {
@@ -237,7 +193,7 @@ export class JiraService {
 
     groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, percentComplete: number, developers: { name: string, story: number, point: number, design: number, total: number, done: number }[] }[] }> => {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => (this.whitelist.includes(item.developer) || this.whitelist.includes(item.assignee)) && item.sprint.includes(sprint?.toString() || ''));
+        const filteredData = data.filter(item => (WHITELISTED_DEVELOPERS.includes(item.developer as WhitelistedDeveloper) || WHITELISTED_DEVELOPERS.includes(item.assignee as WhitelistedDeveloper)) && item.sprint.includes(sprint?.toString() || ''));
         const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, story: number, point: number, design: number, total: number, done: number, status: string }[] } }>((acc, curr) => {
             const key = `${curr.squad}-${curr.sprint}`;
             if (!acc[key]) {
@@ -282,7 +238,7 @@ export class JiraService {
 
     groupIssuesByDeveloper = async (): Promise<{ data: { developer: string, sprints: { sprint: string, point: number, design: number }[] }[] }> => {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => this.whitelist.includes(item.developer));
+        const filteredData = data.filter(item => WHITELISTED_DEVELOPERS.includes(item.developer as WhitelistedDeveloper));
         const groupedData = filteredData.reduce<{ [key: string]: { developer: string, sprints: { sprint: string, point: number, design: number }[] } }>((acc, curr) => {
             const key = curr.developer;
             if (!acc[key]) {
@@ -306,7 +262,7 @@ export class JiraService {
 
     getIssueDesign = async (): Promise<{ data: { developer: string, sprints: { sprint: string, design: number }[] }[] }> => {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && (item.type === 'Design' || item.type === 'IA' || item.labels?.includes('dev-design')));
+        const filteredData = data.filter(item => WHITELISTED_DEVELOPERS.includes(item.developer as WhitelistedDeveloper) && (item.type === 'Design' || item.type === 'IA' || item.labels?.includes('dev-design')));
         const groupedData = filteredData.reduce<{ [key: string]: { developer: string, sprints: { sprint: string, design: number }[] } }>((acc, curr) => {
             const key = curr.developer;
             if (!acc[key]) {
@@ -337,7 +293,7 @@ export class JiraService {
 
     async getIssueShouldInvestigate(): Promise<{ data: JiraIssue[] }> {
         const { data } = await this.getIssues();
-        const filteredData = data.filter(item => this.whitelist.includes(item.developer) && (item.type === 'Technical Story' && (item.storyPoint < item.feStoryPoint + item.beStoryPoint || (item.feStoryPoint + item.beStoryPoint === 0 && item.storyPoint > 0))));
+        const filteredData = data.filter(item => WHITELISTED_DEVELOPERS.includes(item.developer as WhitelistedDeveloper) && (item.type === 'Technical Story' && (item.storyPoint < item.feStoryPoint + item.beStoryPoint || (item.feStoryPoint + item.beStoryPoint === 0 && item.storyPoint > 0))));
         return { data: filteredData.sort((a, b) => b.sprint.localeCompare(a.sprint)) };
     }
 }
