@@ -108,7 +108,17 @@ export class JiraService {
                 storyPoint: issue.fields.customfield_10028 || 0,
                 feStoryPoint: issue.fields.customfield_10909 || 0,
                 beStoryPoint: issue.fields.customfield_10910 || 0,
-                sprint: issue.fields.customfield_10020?.[0]?.name || 'No Sprint',
+                sprint: (() => {
+                    const sprints = issue.fields.customfield_10020
+                    if (!sprints || sprints.length === 0) return 'No Sprint'
+                    const sorted = [...sprints].sort((a, b) => {
+                        const aDate = a.endDate ? new Date(a.endDate).getTime() : 0
+                        const bDate = b.endDate ? new Date(b.endDate).getTime() : 0
+                        if (aDate !== bDate) return aDate - bDate
+                        return a.name.localeCompare(b.name)
+                    })
+                    return sorted[sorted.length - 1].name
+                })(),
                 squad: issue.fields.customfield_10239?.value || 'No Squad',
                 type: issue.fields.issuetype?.name || 'Unknown',
                 labels: issue.fields.labels || [],
@@ -199,7 +209,7 @@ export class JiraService {
             if (!acc[key]) {
                 acc[key] = { squad: curr.squad, sprint: curr.sprint, developers: [] };
             }
-            const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || dev.name === curr.assignee);
+            const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || (curr.developer === 'Unassigned' && dev.name === curr.assignee));
             if (existingDeveloper) {
                 existingDeveloper.story += curr.storyPoint;
                 existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
