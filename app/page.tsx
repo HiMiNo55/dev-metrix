@@ -27,7 +27,7 @@ export default async function Home() {
   )
   const response = await jiraService.groupIssuesByDeveloper()
   const startSprintAt = 52
-  const endSprintAt = 59
+  const endSprintAt = 60
   const totalSprints = endSprintAt - startSprintAt + 1
   let sum = 0
   return (
