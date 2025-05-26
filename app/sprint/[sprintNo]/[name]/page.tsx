@@ -3,6 +3,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -114,6 +115,31 @@ export default async function DeveloperSprint({ params }: Props) {
             </TableRow>
           ))}
         </TableBody>
+        <TableFooter>
+          <TableRow>
+            <TableCell colSpan={5} className='text-right font-semibold'>
+              Total
+            </TableCell>
+            <TableCell className='text-center font-semibold'>
+              {response.data.reduce(
+                (acc, issue) => acc + (issue.storyPoint || 0),
+                0
+              )}
+            </TableCell>
+            <TableCell className='text-center font-semibold'>
+              {response.data.reduce(
+                (acc, issue) => acc + (issue.feStoryPoint || 0),
+                0
+              )}
+            </TableCell>
+            <TableCell className='text-center font-semibold'>
+              {response.data.reduce(
+                (acc, issue) => acc + (issue.beStoryPoint || 0),
+                0
+              )}
+            </TableCell>
+          </TableRow>
+        </TableFooter>
       </Table>
     </div>
   )
