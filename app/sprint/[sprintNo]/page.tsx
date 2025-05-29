@@ -60,7 +60,7 @@ export default async function Sprint({ params }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead className='w-1/3'>Developer</TableHead>
-                <TableHead>Done/All</TableHead>
+                <TableHead>Ticket no.</TableHead>
                 <TableHead>Story Points</TableHead>
                 <TableHead>Dev Points</TableHead>
                 <TableHead>Design/IA Points</TableHead>

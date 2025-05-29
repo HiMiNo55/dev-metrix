@@ -3,6 +3,7 @@ import { JiraIssue, JiraApiIssue, JiraApiResponse } from '../types/jira';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { WHITELISTED_DEVELOPERS, WhitelistedDeveloper } from '../../data/whitelist';
+import Design from '../design/page';
 
 export class JiraService {
     private readonly jiraUrl: string;
@@ -212,18 +213,23 @@ export class JiraService {
             const existingDeveloper = acc[key].developers.find(dev => dev.name === curr.developer || (curr.developer === 'Unassigned' && dev.name === curr.assignee));
             if (existingDeveloper) {
                 existingDeveloper.story += curr.storyPoint;
-                existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
                 existingDeveloper.total++;
                 existingDeveloper.done += ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0;
                 if (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design')) {
                     existingDeveloper.design += curr.storyPoint;
+                } else {
+                    existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
                 }
             } else {
                 acc[key].developers.push({
-                    name: (curr.developer !== 'Unassigned') ? curr.developer : curr.assignee,
+                    name: curr.developer !== 'Unassigned' ? curr.developer : curr.assignee,
                     story: curr.storyPoint,
-                    point: curr.feStoryPoint + curr.beStoryPoint,
-                    design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0,
+                    point: (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design'))
+                        ? 0
+                        : curr.feStoryPoint + curr.beStoryPoint,
+                    design: (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design'))
+                        ? curr.storyPoint
+                        : 0,
                     total: 1,
                     done: ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0,
                     status: curr.status
@@ -257,12 +263,17 @@ export class JiraService {
 
             const existingSprint = acc[key].sprints.find(sprint => sprint.sprint.includes(curr.sprint.slice(-2)));
             if (existingSprint) {
-                existingSprint.point += curr.feStoryPoint + curr.beStoryPoint;
                 if (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design')) {
                     existingSprint.design = (existingSprint.design || 0) + curr.storyPoint;
+                } else {
+                    existingSprint.point += curr.feStoryPoint + curr.beStoryPoint;
                 }
             } else {
-                acc[key].sprints.push({ sprint: curr.sprint.slice(-2), point: curr.feStoryPoint + curr.beStoryPoint, design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0 });
+                acc[key].sprints.push({
+                    sprint: curr.sprint.slice(-2),
+                    point: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? 0 : curr.feStoryPoint + curr.beStoryPoint,
+                    design: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : 0
+                });
             }
             return acc;
         }, {});
