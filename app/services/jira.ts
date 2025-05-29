@@ -3,7 +3,6 @@ import { JiraIssue, JiraApiIssue, JiraApiResponse } from '../types/jira';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { WHITELISTED_DEVELOPERS, WhitelistedDeveloper } from '../../data/whitelist';
-import Design from '../design/page';
 
 export class JiraService {
     private readonly jiraUrl: string;
