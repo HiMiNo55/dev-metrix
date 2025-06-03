@@ -1,4 +1,5 @@
-import { JiraService } from '@/app/services/jira'
+import { JiraClient } from '@/lib/services/jira/client'
+import { jiraConfig } from '@/config/jira'
 import {
   Table,
   TableBody,
@@ -9,22 +10,7 @@ import {
 } from '@/components/ui/table'
 
 export default async function Investigate() {
-  if (
-    !process.env.JIRA_URL ||
-    !process.env.JIRA_USERNAME ||
-    !process.env.JIRA_TOKEN
-  ) {
-    throw new Error(
-      'Missing required environment variables for Jira configuration'
-    )
-  }
-
-  const jiraService = new JiraService(
-    process.env.JIRA_URL,
-    process.env.JIRA_USERNAME,
-    process.env.JIRA_TOKEN
-  )
-
+  const jiraService = new JiraClient(jiraConfig)
   const response = await jiraService.getIssueShouldInvestigate()
 
   if (!response.data.length) {

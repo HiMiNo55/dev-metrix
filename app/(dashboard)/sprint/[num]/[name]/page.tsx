@@ -1,4 +1,5 @@
-import { JiraService } from '@/app/services/jira'
+import { JiraClient } from '@/lib/services/jira/client'
+import { jiraConfig } from '@/config/jira'
 import {
   Table,
   TableBody,
@@ -12,31 +13,17 @@ import Link from 'next/link'
 
 type Props = {
   params: {
-    sprintNo: string
+    num: string
     name: string
   }
 }
 
 export default async function DeveloperSprint({ params }: Props) {
-  if (
-    !process.env.JIRA_URL ||
-    !process.env.JIRA_USERNAME ||
-    !process.env.JIRA_TOKEN
-  ) {
-    throw new Error(
-      'Missing required environment variables for Jira configuration'
-    )
-  }
-
-  const jiraService = new JiraService(
-    process.env.JIRA_URL,
-    process.env.JIRA_USERNAME,
-    process.env.JIRA_TOKEN
-  )
-  const { sprintNo, name } = await params
+  const jiraService = new JiraClient(jiraConfig)
+  const { num, name } = await params
   const decodedName = decodeURIComponent(name)
   const response = await jiraService.getDeveloperIssues(
-    Number(sprintNo),
+    Number(num),
     decodedName
   )
 
@@ -45,13 +32,14 @@ export default async function DeveloperSprint({ params }: Props) {
       <div className='container mx-auto py-10'>
         <div className='flex items-center gap-4 mb-8'>
           <Link
-            href={`/sprint/${sprintNo}`}
+            href={`/sprint/${num}`}
             className='text-sm text-muted-foreground hover:text-primary'
+            prefetch={false}
           >
             ← Back to Sprint
           </Link>
           <h1 className='text-3xl font-bold'>
-            {decodedName}&apos;s Issues - Sprint {sprintNo}
+            {decodedName}&apos;s Issues - Sprint {num}
           </h1>
         </div>
         <p>No issues found for this developer in this sprint.</p>
@@ -63,13 +51,13 @@ export default async function DeveloperSprint({ params }: Props) {
     <div className='container mx-auto py-10'>
       <div className='flex items-center gap-4 mb-8'>
         <Link
-          href={`/sprint/${sprintNo}`}
+          href={`/sprint/${num}`}
           className='text-sm text-muted-foreground hover:text-primary'
         >
           ← Back to Sprint
         </Link>
         <h1 className='text-3xl font-bold'>
-          {decodedName}&apos;s Issues - Sprint {sprintNo}
+          {decodedName}&apos;s Issues - Sprint {num}
         </h1>
       </div>
 
