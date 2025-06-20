@@ -65,6 +65,7 @@ export default async function DeveloperSprint({ params }: Props) {
         <TableHeader>
           <TableRow>
             <TableHead>Squad</TableHead>
+            <TableHead>Sprint</TableHead>
             <TableHead>Issue Key</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
@@ -78,6 +79,7 @@ export default async function DeveloperSprint({ params }: Props) {
           {response.data.map((issue) => (
             <TableRow key={issue.key}>
               <TableCell>{issue.squad}</TableCell>
+              <TableCell>{issue.sprint}</TableCell>
               <TableCell>
                 <a
                   href={`${process.env.JIRA_URL}/browse/${issue.key}`}
@@ -105,7 +107,7 @@ export default async function DeveloperSprint({ params }: Props) {
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={5} className='text-right font-semibold'>
+            <TableCell colSpan={6} className='text-right font-semibold'>
               Total
             </TableCell>
             <TableCell className='text-center font-semibold'>

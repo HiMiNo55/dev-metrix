@@ -214,10 +214,10 @@ export class JiraClient {
         return { data: sorted }
     }
 
-    groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, percentComplete: number, developers: { name: string, story: number, point: number, design: number, total: number, done: number }[] }[] }> => {
+    groupIssuesBySprint = async (sprint?: number): Promise<{ data: { squad: string, sprint: string, percentComplete: number, developers: { name: string, story: number, point: number, design: number, total: number, done: number, sumPoint: number }[] }[] }> => {
         const { data } = await this.getIssues();
         const filteredData = data.filter(item => (WHITELISTED_DEVELOPERS.includes(item.developer as WhitelistedDeveloper) || WHITELISTED_DEVELOPERS.includes(item.assignee as WhitelistedDeveloper)) && item.sprint.includes(sprint?.toString() || ''));
-        const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, story: number, point: number, design: number, total: number, done: number, status: string }[] } }>((acc, curr) => {
+        const groupedData = filteredData.reduce<{ [key: string]: { squad: string, sprint: string, developers: { name: string, story: number, point: number, design: number, total: number, done: number, status: string, sumPoint: number }[] } }>((acc, curr) => {
             const key = `${curr.squad}-${curr.sprint}`;
             if (!acc[key]) {
                 acc[key] = { squad: curr.squad, sprint: curr.sprint, developers: [] };
@@ -229,8 +229,10 @@ export class JiraClient {
                 existingDeveloper.done += ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0;
                 if (curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design')) {
                     existingDeveloper.design += curr.storyPoint;
+                    existingDeveloper.sumPoint += curr.storyPoint;
                 } else {
                     existingDeveloper.point += curr.feStoryPoint + curr.beStoryPoint;
+                    existingDeveloper.sumPoint += curr.feStoryPoint + curr.beStoryPoint;
                 }
             } else {
                 acc[key].developers.push({
@@ -244,7 +246,8 @@ export class JiraClient {
                         : 0,
                     total: 1,
                     done: ['DONE', 'DoD complete', 'Design Done', 'IA Done'].includes(curr.status) ? 1 : 0,
-                    status: curr.status
+                    status: curr.status,
+                    sumPoint: curr.type === 'Design' || curr.type === 'IA' || curr.labels?.includes('dev-design') ? curr.storyPoint : curr.feStoryPoint + curr.beStoryPoint
                 });
             }
             return acc;
@@ -255,11 +258,6 @@ export class JiraClient {
                 ...squadData,
                 percentComplete: squadData.developers.reduce((acc, dev) => acc + dev.done, 0) / squadData.developers.reduce((acc, dev) => acc + dev.total, 0) * 100
             }))
-                .sort((a, b) => a.squad.localeCompare(b.squad))
-                .map(squadData => ({
-                    ...squadData,
-                    developers: squadData.developers.sort((a, b) => a.name.localeCompare(b.name))
-                }))
         };
     }
 

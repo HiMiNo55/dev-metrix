@@ -35,68 +35,77 @@ export default async function Sprint({ params }: Props) {
     <div className='container mx-auto py-10'>
       <h1 className='text-xl font-bold mb-8'>Sprint {num}</h1>
 
-      {response.data.map((squadData) => (
-        <div key={squadData.squad + squadData.sprint} className='mb-8'>
-          <h2 className='text-lg font-semibold mb-4'>
-            {`[${squadData.squad}]`} - {squadData.sprint}{' '}
-            <span className='text-muted-foreground text-sm'>
-              Completed: {Math.round(squadData.percentComplete)}%
-            </span>
-          </h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-1/3'>Developer</TableHead>
-                <TableHead>Ticket no.</TableHead>
-                <TableHead>Story</TableHead>
-                <TableHead>Dev</TableHead>
-                <TableHead>Design/IA</TableHead>
-                <TableHead>Dev+Design</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {squadData.developers.map((developer) => (
-                <TableRow key={developer.name}>
-                  <TableCell className='text-left'>
-                    <Link
-                      href={`/sprint/${num}/${developer.name}`}
-                      className='text-primary hover:underline'
-                    >
-                      {developer.name}
-                    </Link>
+      {response.data
+        .sort((a, b) => a.squad.localeCompare(b.squad))
+        .map((squadData) => (
+          <div key={squadData.squad + squadData.sprint} className='mb-8'>
+            <h2 className='text-lg font-semibold mb-4'>
+              {`[${squadData.squad}]`} - {squadData.sprint}{' '}
+              <span className='text-muted-foreground text-sm'>
+                Completed: {Math.round(squadData.percentComplete)}%
+              </span>
+            </h2>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-1/3'>Developer</TableHead>
+                  <TableHead>Ticket no.</TableHead>
+                  <TableHead>Story</TableHead>
+                  <TableHead>Dev</TableHead>
+                  <TableHead>Design/IA</TableHead>
+                  <TableHead>Dev+Design</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {squadData.developers
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .sort((a, b) => b.sumPoint - a.sumPoint)
+                  .map((developer) => (
+                    <TableRow key={developer.name} className='hover:bg-muted'>
+                      <TableCell className='text-left'>
+                        <Link
+                          href={`/sprint/${num}/${developer.name}`}
+                          className='text-primary hover:underline'
+                        >
+                          {developer.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{`${developer.done}/${
+                        developer.total
+                      } (${Math.round(
+                        (developer.done / developer.total) * 100
+                      )}%)`}</TableCell>
+                      <TableCell className='text-center'>
+                        {developer.story}
+                      </TableCell>
+                      <TableCell className='text-center'>
+                        {developer.point}
+                      </TableCell>
+                      <TableCell className='text-center'>
+                        {developer.design}
+                      </TableCell>
+                      <TableCell className='text-center'>
+                        {developer.sumPoint}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={5} className='text-right'>
+                    Total
                   </TableCell>
-                  <TableCell>{`${developer.done}/${developer.total}`}</TableCell>
                   <TableCell className='text-center'>
-                    {developer.story}
-                  </TableCell>
-                  <TableCell className='text-center'>
-                    {developer.point}
-                  </TableCell>
-                  <TableCell className='text-center'>
-                    {developer.design}
-                  </TableCell>
-                  <TableCell className='text-center'>
-                    {developer.point + developer.design}
+                    {squadData.developers.reduce(
+                      (acc, dev) => acc + dev.sumPoint,
+                      0
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={5} className='text-right'>
-                  Total
-                </TableCell>
-                <TableCell className='text-center'>
-                  {squadData.developers.reduce(
-                    (acc, dev) => acc + dev.point + dev.design,
-                    0
-                  )}
-                </TableCell>
-              </TableRow>
-            </TableFooter>
-          </Table>
-        </div>
-      ))}
+              </TableFooter>
+            </Table>
+          </div>
+        ))}
     </div>
   )
 }
