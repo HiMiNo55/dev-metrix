@@ -14,7 +14,7 @@ export default async function Score() {
   const jiraService = new JiraClient(jiraConfig)
   const response = await jiraService.groupIssuesByDeveloper()
   const startSprintAt = 52
-  const endSprintAt = 61
+  const endSprintAt = 66
   const totalSprints = endSprintAt - startSprintAt + 1
 
   return (
@@ -55,7 +55,7 @@ export default async function Score() {
                   sum += sprintSum
                   return (
                     <TableCell key={`${index}`} className='text-center'>
-                      {`${sprintData?.point || 0} | ${sprintData?.design || 0}`}
+                      {`${sprintSum.toFixed(2)}`}
                     </TableCell>
                   )
                 })}
