@@ -69,7 +69,7 @@ export class JiraClient {
 
             // Try to read from today's cache file
             const fileCache = await this.readFileCache(cacheFilePath)
-            const THREE_HOURS_IN_MS = 1000 * 60 * 60 * 3
+            const THREE_HOURS_IN_MS = 1000 * 60 * 60 * 8
             if (fileCache && fileCache.timestamp > Date.now() - THREE_HOURS_IN_MS) {
                 console.log('Returning cached Jira issues from file')
                 return { data: fileCache.data }
@@ -77,34 +77,30 @@ export class JiraClient {
 
             console.log('Fetching fresh Jira issues')
             const auth = Buffer.from(`${this.username}:${this.password}`).toString('base64')
-            const maxResults = 100
-            let startAt = 0
             let allIssues: JiraApiIssue[] = []
-            let totalIssues: number | null = null
+            let nextPageToken = null
+            let isLast = false
 
             do {
-                const response = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search`, {
+                const response: { data: JiraApiResponse } = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search/jql`, {
                     params: {
                         jql: `project = LPS AND type IN ("Technical Story", Task, Design, IA) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1", "CPL SQ2") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
                         fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee, status, created',
-                        maxResults,
-                        startAt,
+                        maxResults: 1000,
+                        nextPageToken: nextPageToken || undefined
                     },
                     headers: {
                         Authorization: `Basic ${auth}`,
                     },
                 })
 
-                const { issues, total } = response.data
-                if (totalIssues === null) {
-                    totalIssues = total
-                }
-
+                const { issues } = response.data
                 allIssues = [...allIssues, ...issues]
-                startAt += maxResults
+                nextPageToken = response.data.nextPageToken
+                isLast = response.data.isLast
 
-                console.log(`Fetched ${allIssues.length} of ${totalIssues} issues`)
-            } while (startAt < totalIssues!)
+                console.log(`Fetched ${allIssues.length}`)
+            } while (!isLast)
 
             const mappedIssues = allIssues.map((issue: JiraApiIssue) => ({
                 id: issue.id,

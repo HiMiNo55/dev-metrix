@@ -58,8 +58,8 @@ export interface JiraIssue {
 export interface JiraApiResponse {
     issues: JiraApiIssue[]
     total: number
-    maxResults: number
-    startAt: number
+    nextPageToken: string
+    isLast: boolean
 }
 
 export interface DeveloperMetrics {
