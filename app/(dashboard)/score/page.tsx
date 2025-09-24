@@ -14,7 +14,7 @@ export default async function Score() {
   const jiraService = new JiraClient(jiraConfig)
   const response = await jiraService.groupIssuesByDeveloper()
   const startSprintAt = 52
-  const endSprintAt = 69
+  const endSprintAt = 68
   const totalSprints = endSprintAt - startSprintAt + 1
 
   return (
