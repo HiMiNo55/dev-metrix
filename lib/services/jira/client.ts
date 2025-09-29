@@ -15,7 +15,7 @@ export class JiraClient {
     private readonly username: string
     private readonly password: string
     private readonly cacheDir: string
-    private readonly MAX_CACHE_DAYS = 3
+    private readonly MAX_CACHE_MONTHS = 12
 
     constructor(config: JiraConfig) {
         this.jiraUrl = config.baseUrl
@@ -24,9 +24,24 @@ export class JiraClient {
         this.cacheDir = path.join(process.cwd(), 'data', 'jira-cache')
     }
 
-    private getCacheFilePath(date: Date): string {
-        const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
-        return path.join(this.cacheDir, `jira-cache-${dateStr}.json`)
+    private getCacheFilePath(year: number, month: number): string {
+        const monthStr = month.toString().padStart(2, '0')
+        return path.join(this.cacheDir, `jira-cache-${year}-${monthStr}.json`)
+    }
+
+    private getMonthsToFetch(): { year: number; month: number }[] {
+        const currentDate = new Date()
+        const currentYear = currentDate.getFullYear()
+        const currentMonth = currentDate.getMonth() + 1 // getMonth() returns 0-11
+
+        const months: { year: number; month: number }[] = []
+
+        // Get months from start of current year to current month
+        for (let month = 1; month <= currentMonth; month++) {
+            months.push({ year: currentYear, month })
+        }
+
+        return months
     }
 
     private async cleanupOldCache(): Promise<void> {
@@ -40,19 +55,25 @@ export class JiraClient {
                     .map(async file => {
                         const filePath = path.join(this.cacheDir, file)
                         const stats = await fs.stat(filePath)
+                        const dateStr = file.replace('jira-cache-', '').replace('.json', '')
+                        const [year, month] = dateStr.split('-').map(Number)
                         return {
                             file,
-                            date: new Date(file.replace('jira-cache-', '').replace('.json', '')),
+                            year,
+                            month,
                             stats
                         }
                     })
             )
 
-            // Sort by date descending
-            cacheFiles.sort((a, b) => b.date.getTime() - a.date.getTime())
+            // Sort by year and month descending
+            cacheFiles.sort((a, b) => {
+                if (a.year !== b.year) return b.year - a.year
+                return b.month - a.month
+            })
 
-            // Delete files older than MAX_CACHE_DAYS
-            for (let i = this.MAX_CACHE_DAYS; i < cacheFiles.length; i++) {
+            // Delete files older than MAX_CACHE_MONTHS
+            for (let i = this.MAX_CACHE_MONTHS; i < cacheFiles.length; i++) {
                 const filePath = path.join(this.cacheDir, cacheFiles[i].file)
                 await fs.unlink(filePath)
                 console.log(`Deleted old cache file: ${filePath}`)
@@ -64,80 +85,109 @@ export class JiraClient {
 
     async getIssues(): Promise<{ data: JiraIssue[] }> {
         try {
-            const today = new Date()
-            const cacheFilePath = this.getCacheFilePath(today)
-
-            // Try to read from today's cache file
-            const fileCache = await this.readFileCache(cacheFilePath)
-            const THREE_HOURS_IN_MS = 1000 * 60 * 60 * 8
-            if (fileCache && fileCache.timestamp > Date.now() - THREE_HOURS_IN_MS) {
-                console.log('Returning cached Jira issues from file')
-                return { data: fileCache.data }
-            }
-
-            console.log('Fetching fresh Jira issues')
+            const monthsToFetch = this.getMonthsToFetch()
+            const EIGHT_HOURS_IN_MS = 1000 * 60 * 60 * 8
             const auth = Buffer.from(`${this.username}:${this.password}`).toString('base64')
-            let allIssues: JiraApiIssue[] = []
-            let nextPageToken = null
-            let isLast = false
+            let allIssues: JiraIssue[] = []
 
-            do {
-                const response: { data: JiraApiResponse } = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search/jql`, {
-                    params: {
-                        jql: `project = LPS AND type IN ("Technical Story", Task, Design, IA) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1", "CPL SQ2") AND created >= startOfYear() ORDER BY "Squad[Dropdown]" DESC`,
-                        fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee, status, created',
-                        maxResults: 1000,
-                        nextPageToken: nextPageToken || undefined
-                    },
-                    headers: {
-                        Authorization: `Basic ${auth}`,
-                    },
-                })
+            // Check each month's cache and fetch only outdated ones
+            const today = new Date()
+            const currentYear = today.getFullYear()
+            const currentMonth = today.getMonth() + 1 // getMonth() is zero-based
 
-                const { issues } = response.data
-                allIssues = [...allIssues, ...issues]
-                nextPageToken = response.data.nextPageToken
-                isLast = response.data.isLast
+            for (const { year, month } of monthsToFetch) {
+                const cacheFilePath = this.getCacheFilePath(year, month)
+                const fileCache = await this.readFileCache(cacheFilePath)
 
-                console.log(`Fetched ${allIssues.length}`)
-            } while (!isLast)
+                // For past months, use cache if it exists (regardless of age)
+                // For current month, check if cache is less than 8 hours old
+                const isCurrentMonth = year === currentYear && month === currentMonth
+                const isCacheValid = fileCache && (
+                    !isCurrentMonth || // Past months: use cache if exists
+                    fileCache.timestamp > Date.now() - EIGHT_HOURS_IN_MS // Current month: check 8-hour rule
+                )
 
-            const mappedIssues = allIssues.map((issue: JiraApiIssue) => ({
-                id: issue.id,
-                key: issue.key,
-                summary: issue.fields.summary,
-                developer: issue.fields.customfield_10949?.displayName || 'Unassigned',
-                storyPoint: issue.fields.customfield_10028 || 0,
-                feStoryPoint: issue.fields.customfield_10909 || 0,
-                beStoryPoint: issue.fields.customfield_10910 || 0,
-                sprint: (() => {
-                    const sprints = issue.fields.customfield_10020
-                    if (!sprints || sprints.length === 0) return 'No Sprint'
-                    const sorted = [...sprints].sort((a, b) => {
-                        const aDate = a.endDate ? new Date(a.endDate).getTime() : 0
-                        const bDate = b.endDate ? new Date(b.endDate).getTime() : 0
-                        if (aDate !== bDate) return aDate - bDate
-                        return a.name.localeCompare(b.name)
+                if (isCacheValid) {
+                    console.log(`Using cached data for ${year}-${month.toString().padStart(2, '0')}`)
+                    allIssues = [...allIssues, ...fileCache.data]
+                    continue
+                }
+
+                console.log(`Fetching fresh Jira issues for ${year}-${month.toString().padStart(2, '0')}`)
+
+                // Calculate date range for this month
+                const startDate = new Date(year, month - 1, 1)
+                const endDate = new Date(year, month, 0) // Last day of the month
+
+                const startDateStr = startDate.toISOString().split('T')[0]
+                const endDateStr = endDate.toISOString().split('T')[0]
+
+                let monthIssues: JiraApiIssue[] = []
+                let nextPageToken = null
+                let isLast = false
+
+                do {
+                    const response: { data: JiraApiResponse } = await axios.get<JiraApiResponse>(`${this.jiraUrl}/rest/api/3/search/jql`, {
+                        params: {
+                            jql: `project = LPS AND type IN ("Technical Story", Task, Design, IA) AND status NOT IN (Cancelled) AND "Squad[Dropdown]" IN ("DBM SQ1", "RTL SQ1", "RTL SQ2", "MGL SQ1", "CPL SQ1", "CPL SQ2") AND updated >= "${startDateStr}" AND updated <= "${endDateStr}" ORDER BY "Squad[Dropdown]" DESC`,
+                            fields: 'id,key,summary,customfield_10949, customfield_10028, customfield_10909, customfield_10910, customfield_10020, customfield_10239, issuetype, labels, assignee, status, created, updated',
+                            maxResults: 1000,
+                            nextPageToken: nextPageToken || undefined
+                        },
+                        headers: {
+                            Authorization: `Basic ${auth}`,
+                        },
                     })
-                    return sorted[sorted.length - 1].name
-                })(),
-                squad: issue.fields.customfield_10239?.value || 'No Squad',
-                type: issue.fields.issuetype?.name || 'Unknown',
-                labels: issue.fields.labels || [],
-                assignee: issue.fields.assignee?.displayName || 'Unassigned',
-                status: issue.fields.status?.name || 'Unknown',
-                created: issue.fields.created || ''
-            }))
 
-            // Update file cache
-            const cacheData = {
-                data: mappedIssues,
-                timestamp: Date.now()
+                    const { issues } = response.data
+                    monthIssues = [...monthIssues, ...issues]
+                    nextPageToken = response.data.nextPageToken
+                    isLast = response.data.isLast
+
+                    console.log(`Fetched ${monthIssues.length} issues for ${year}-${month.toString().padStart(2, '0')}`)
+                } while (!isLast)
+
+                const mappedMonthIssues = monthIssues.map((issue: JiraApiIssue) => ({
+                    id: issue.id,
+                    key: issue.key,
+                    summary: issue.fields.summary,
+                    developer: issue.fields.customfield_10949?.displayName || 'Unassigned',
+                    storyPoint: issue.fields.customfield_10028 || 0,
+                    feStoryPoint: issue.fields.customfield_10909 || 0,
+                    beStoryPoint: issue.fields.customfield_10910 || 0,
+                    sprint: (() => {
+                        const sprints = issue.fields.customfield_10020
+                        if (!sprints || sprints.length === 0) return 'No Sprint'
+                        const sorted = [...sprints].sort((a, b) => {
+                            const aDate = a.endDate ? new Date(a.endDate).getTime() : 0
+                            const bDate = b.endDate ? new Date(b.endDate).getTime() : 0
+                            if (aDate !== bDate) return aDate - bDate
+                            return a.name.localeCompare(b.name)
+                        })
+                        return sorted[sorted.length - 1].name
+                    })(),
+                    squad: issue.fields.customfield_10239?.value || 'No Squad',
+                    type: issue.fields.issuetype?.name || 'Unknown',
+                    labels: issue.fields.labels || [],
+                    assignee: issue.fields.assignee?.displayName || 'Unassigned',
+                    status: issue.fields.status?.name || 'Unknown',
+                    created: issue.fields.created || '',
+                    updated: issue.fields.updated || ''
+                }))
+
+                // Cache this month's data
+                const cacheData = {
+                    data: mappedMonthIssues,
+                    timestamp: Date.now()
+                }
+                await this.writeFileCache(cacheFilePath, cacheData)
+
+                allIssues = [...allIssues, ...mappedMonthIssues]
             }
-            await this.writeFileCache(cacheFilePath, cacheData)
-            await this.cleanupOldCache()
 
-            return { data: mappedIssues }
+            await this.cleanupOldCache()
+            console.log(`Total issues fetched: ${allIssues.length}`)
+            return { data: allIssues }
         } catch (error) {
             console.error('Error in getIssues:', error)
             throw error
