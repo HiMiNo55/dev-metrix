@@ -1,74 +1,87 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { JiraClient } from '@/lib/services/jira/client'
 import { jiraConfig } from '@/config/jira'
-import type { JiraIssue, JiraSprint, JiraBoard } from '@/lib/services/jira/types'
 
 export function useJira() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
 
-    const client = new JiraClient(jiraConfig)
+    const client = useMemo(() => new JiraClient(jiraConfig), [])
 
-    const getIssue = useCallback(async (issueKey: string) => {
+    const getIssues = useCallback(async () => {
         try {
             setIsLoading(true)
             setError(null)
-            return await client.getIssue(issueKey)
+            return await client.getIssues()
         } catch (err) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch Jira issue'))
+            setError(err instanceof Error ? err : new Error('Failed to fetch Jira issues'))
             throw err
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [client])
 
-    const getSprintIssues = useCallback(async (sprintId: number) => {
+    const groupIssuesByDeveloper = useCallback(async () => {
         try {
             setIsLoading(true)
             setError(null)
-            return await client.getSprintIssues(sprintId)
+            return await client.groupIssuesByDeveloper()
         } catch (err) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch sprint issues'))
+            setError(err instanceof Error ? err : new Error('Failed to group issues by developer'))
             throw err
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [client])
 
-    const getSprints = useCallback(async (boardId: number) => {
+    const groupIssuesBySprint = useCallback(async (sprint?: number) => {
         try {
             setIsLoading(true)
             setError(null)
-            return await client.getSprints(boardId)
+            return await client.groupIssuesBySprint(sprint)
         } catch (err) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch sprints'))
+            setError(err instanceof Error ? err : new Error('Failed to group issues by sprint'))
             throw err
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [client])
 
-    const getBoards = useCallback(async () => {
+    const getDeveloperIssues = useCallback(async (sprint: number, developer: string) => {
         try {
             setIsLoading(true)
             setError(null)
-            return await client.getBoards()
+            return await client.getDeveloperIssues(sprint, developer)
         } catch (err) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch boards'))
+            setError(err instanceof Error ? err : new Error('Failed to fetch developer issues'))
             throw err
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [client])
+
+    const getIssueShouldInvestigate = useCallback(async () => {
+        try {
+            setIsLoading(true)
+            setError(null)
+            return await client.getIssueShouldInvestigate()
+        } catch (err) {
+            setError(err instanceof Error ? err : new Error('Failed to fetch issues to investigate'))
+            throw err
+        } finally {
+            setIsLoading(false)
+        }
+    }, [client])
 
     return {
         isLoading,
         error,
-        getIssue,
-        getSprintIssues,
-        getSprints,
-        getBoards,
+        getIssues,
+        groupIssuesByDeveloper,
+        groupIssuesBySprint,
+        getDeveloperIssues,
+        getIssueShouldInvestigate,
     }
 } 

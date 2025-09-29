@@ -30,6 +30,7 @@ export interface JiraFields {
     assignee?: JiraCustomField
     status?: JiraCustomField
     created?: string
+    updated?: string
 }
 
 export interface JiraApiIssue {
@@ -53,6 +54,7 @@ export interface JiraIssue {
     assignee: string
     status: string
     created: string
+    updated: string
 }
 
 export interface JiraApiResponse {
